@@ -1,4 +1,8 @@
 -- Code from chapter 9 - A Type Checker
+
+-- The main thing is working through the code to make it more comprehensible my using
+-- modern things like maps, monads, type-aliases and sensible var names (gamma?, pls).
+
 import qualified Data.Map as Map
 
 get = (Map.!) -- rename symbol
