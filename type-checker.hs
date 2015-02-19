@@ -126,8 +126,8 @@ typeCheck :: Env -> NameSupply -> Exp -> TypeCheckResult
 typeCheck env ns (Var x) = tcVar env ns x
 typeCheck env ns (Apply e1 e2) = tcApp env ns e1 e2
 typeCheck env ns (Lambda vs e) = tcLamda env ns vs e
-typeCheck env ns (Let xs es e) = tcLet env xs es e
-typeCheck env ns (LetRec xs es e) = tcLetRec env xs es e
+typeCheck env ns (Let xs es e) = tcLet env ns xs es e
+typeCheck env ns (LetRec xs es e) = tcLetRec env ns xs es e
 
 -- Helper to check all types in a list.
 checkAll :: Env -> NameSupply -> [Exp] -> Maybe (Subtitution, [TypeExp])
@@ -181,7 +181,38 @@ tcLamda env ns x e = do
 
 -- Check let expressions
 
-tcLet = error "Not implemented"
+-- type check the defs, update the env to include these bindings, check
+-- the rhs, and then combine the results.
+tcLet :: Env -> NameSupply -> [VarName] -> [Exp] -> Exp -> TypeCheckResult
+tcLet env ns vars vals e = do
+    let (ns0, ns1) = split ns
+    let (ns2, ns3) = split ns1
+    (phi, ts) <- checkAll env ns0  vals
+    let env' = withBindings (subEnv phi env) ns2 vars ts
+    (psi, t) <- typeCheck env' ns3 e
+    return (psi `scomp` phi, t)
+
+withBindings :: Env -> NameSupply -> [VarName] -> [TypeExp] -> Env
+withBindings env ns names types =
+    Map.union newTypes env
+    where newTypes = Map.fromList (names `zip` schemes)
+          schemes = map (createScheme varFilter ns) types
+          varFilter = filter $ not . (`elem` unknowns)
+          unknowns = unknownsInEnv env
+
+createScheme :: ([TypeName] -> [TypeName]) -> NameSupply -> TypeExp -> Scheme
+createScheme filt ns t = Scheme (map snd bindings) t'
+    where bindings = zip schematics (nameSequence ns)
+          schematics = filt $ uniq (varsIn t)
+          t' = subType (mappingSubst (Map.fromList bindings)) t
+
+uniq :: Eq a => [a] -> [a]
+uniq xs = f [] xs
+    where f acc [] = acc
+          f acc (x:xs)
+            | x `elem` acc = f acc xs
+            | otherwise    = f (x:acc) xs
+
 tcLetRec = error "Not implemented"
 
 -- skk should be the same as id
