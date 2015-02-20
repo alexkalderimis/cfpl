@@ -120,6 +120,11 @@ split ns = (0:ns,1:ns)
 nameSequence :: NameSupply -> [TypeName]
 nameSequence ns = nextName ns : nameSequence (deplete ns)
 
+-- Infinite list of name supplies
+nameSupplies :: NameSupply -> [NameSupply]
+nameSupplies ns = ns0 : nameSupplies ns1
+    where (ns0, ns1) = split ns
+
 -- The type checker
 
 type TypeCheckResult = Maybe (Substitution, TypeExp)
@@ -221,19 +226,17 @@ uniq xs = f [] xs
 
 tcLetRec :: Env -> NameSupply -> [VarName] -> [Exp] -> Exp -> TypeCheckResult
 tcLetRec env ns names vals e = do
-    let (ns', ns1) = split ns
-    let (ns2, ns3) = split ns'
-    let (ns4, ns5) = split ns3
-    let boundSchemes = bindNames names ns1
-    (phi, ts) <- checkAll (Map.union boundSchemes env) ns2 vals
+    let [ns0, ns1, ns2, ns3] = take 4 (nameSupplies ns)
+    let boundSchemes = bindNames names ns0
+    (phi, ts) <- checkAll (Map.union boundSchemes env) ns1 vals
     let boundSchemes' = subEnv phi boundSchemes
     let env' = subEnv phi env
     let ts' = map getSchemeType $ Map.elems boundSchemes'
     unifier <- unifyl phi (ts `zip` ts')
     let unifiedBindings = (subEnv unifier boundSchemes')
     let unifiedTypes = map getSchemeType (Map.elems unifiedBindings)
-    let fullEnv = withBindings (subEnv unifier env') ns4 (Map.keys unifiedBindings) unifiedTypes
-    (psi, t) <- typeCheck fullEnv ns5 e
+    let fullEnv = withBindings (subEnv unifier env') ns2 (Map.keys unifiedBindings) unifiedTypes
+    (psi, t) <- typeCheck fullEnv ns3 e
     return (psi `scomp` unifier, t)
 
 getSchemeType (Scheme [] t) = t
